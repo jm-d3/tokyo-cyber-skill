@@ -2,6 +2,7 @@ const Alexa = require('ask-sdk-core');
 
 const story = 'tokyo2020.html';
 var $twine = null;
+var $storyData = null;
 
 // Card Content
 const DisplayImg1 = {
@@ -40,6 +41,7 @@ xml = xml.replace('hidden>', 'hidden="true">');
 var parseString = require('xml2js').parseString;
 parseString(xml, function(err, result) {
     $twine = result['tw-storydata']['tw-passagedata'];
+    $storyData = result['tw-storydata']['tw-passagedata']['tw-'];
 });
 
 const LaunchRequestHandler = {
@@ -48,10 +50,9 @@ const LaunchRequestHandler = {
        return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
     },
     handle(handlerInput) {
-
+        console.log($twine);
+        console.log($storyData);
         const sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
-
-        console.log(sessionAttributes);
 
         //var room = currentRoom(sessionAttributes.event)
 
@@ -120,3 +121,53 @@ exports.handler = skillBuilder
   )
   .addErrorHandlers(ErrorHandler)
   .lambda();
+
+
+function currentRoom(sessionAttributes) {
+  var currentRoomData = undefined;
+  for (var i = 0; i < $twine.length; i++) {
+    if ($twine[i]['$']['pid'] === sessionAttributes.room) {
+      currentRoomData = $twine[i];
+      break;
+    }
+  }
+  return currentRoomData;
+}
+
+function followLink(handlerInput, direction_or_array) {
+  var sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
+  var directions = [];
+  if (direction_or_array instanceof Array) {
+    directions = direction_or_array;
+  } else {
+    directions = [direction_or_array];
+  }
+  var room = currentRoom(sessionAttributes);
+  var result = undefined;
+  directions.every(function(direction, index, _arr) {
+    console.log(`followLink: try '${direction}' from ${room['$']['name']}`);
+    var directionRegex = new RegExp(`.*${direction}.*`, 'i');
+    let links;
+    linksRegex.lastIndex = 0;
+    while ((links = linksRegex.exec(room['_'])) !== null) {
+      if (links.index === linksRegex.lastIndex) {
+        linksRegex.lastIndex++;
+      }
+      result = links[1].match(directionRegex);
+      var target = links[2] || links[1];
+      console.log(`followLink: check ${links[1]} (${target}) for ${direction} => ${result} `);
+      if (result) {
+        console.log(`followLink: That would be ${target}`);
+        for (var i = 0; i < $twine.length; i++) {
+          if ($twine[i]['$']['name'].toLowerCase() === target.toLowerCase()) {
+            sessionAttributes.room = $twine[i]['$']['pid'];
+            break;
+          }
+        }
+        break;
+      }
+    }
+    handlerInput.attributesManager.setSessionAttributes(sessionAttributes);
+    return !result;
+  });
+}
