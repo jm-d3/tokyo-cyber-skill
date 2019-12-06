@@ -41,7 +41,6 @@ xml = xml.replace('hidden>', 'hidden="true">');
 var parseString = require('xml2js').parseString;
 parseString(xml, function(err, result) {
     $twine = result['tw-storydata']['tw-passagedata'];
-    $storyData = result['tw-storydata']['tw-passagedata']['tw-'];
 });
 
 const LaunchRequestHandler = {
@@ -74,6 +73,102 @@ const LaunchRequestHandler = {
               .getResponse();
       },
 };
+
+const WhereAmIHandler = {
+  canHandle(handlerInput) {
+    return handlerInput.requestEnvelope.request.intent.name === 'WhereAmI';
+  },
+  handle(handlerInput) {
+    const response = handlerInput.responseBuilder;
+    const speakOutput = "";
+    const sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
+
+    if (sessionAttributes.room === undefined) {
+      // You have just started and therefore are in the first room
+      sessionAttributes.room = $twine[0]['$']['pid'];
+      handlerInput.attributesManager.setSessionAttributes(sessionAttributes);
+      speakOutput = `Welcome to ${story.replace('.html', '')}. Let's start your game.`;
+    }
+
+    const room = currentRoom(sessionAttributes);
+    console.log(`WhereAmI: in ${JSON.stringify(room)}`);
+
+    // get displayable text
+    // e.g. "You are here [[Go South|The Hall]]" -> "You are here. Go South"
+    const displayableText = room['_'];
+    linksRegex.lastIndex = 0;
+    let m;
+    while ((m = linksRegex.exec(displayableText)) !== null) {
+      displayableText = displayableText.replace(m[0], m[1]);
+      linksRegex.lastIndex = 0;
+    }
+
+    // strip html
+    displayableText = displayableText.replace(/<\/?[^>]+(>|$)/g, "");
+    displayableText = displayableText.replace("&amp;", "and");
+    speechOutput = speechOutput + displayableText;
+
+    // create reprompt from links: "You can go north or go south"
+     const reprompt = "";
+     linksRegex.lastIndex = 0;
+     while ((m = linksRegex.exec(room['_'])) !== null) {
+       if (m.index === linksRegex.lastIndex) {
+         linksRegex.lastIndex++;
+       }
+       if (reprompt === "") {
+         if (!m[1].toLowerCase().startsWith('if you')) {
+           reprompt = "You can";
+         }
+       } else {
+         reprompt = `${reprompt} or`;
+       }
+       reprompt = `${reprompt} ${m[1]}`;
+     }
+
+     const firstSentence = displayableText.split('.')[0];
+     const lastSentence = displayableText.replace('\n', ' ').split('. ').pop();
+     const reducedContent = `${firstSentence}. ${reprompt}`;
+
+    // say less if you've been here before
+    if (sessionAttributes.visited == undefined) {
+      sessionAttributes.visited = [];  
+    }
+    if (sessionAttributes.visited.includes(room['$']['pid'])) {
+      console.log("WhereAmI: player is revisiting");
+      speakOutput = reducedContent;
+    } else {
+      sessionAttributes.visited.push(room['$']['pid']);
+    }
+
+     const cardTitle = firstSentence;
+     const cardContent = (reprompt > '') ? reprompt : lastSentence;
+     const imageObj = undefined;
+
+     console.log(`WhereAmI: ${JSON.stringify({
+       "speak": speakOutput,
+       "listen": reprompt,
+       "card": {
+         "title": cardTitle,
+         "content": cardContent,
+         "imageObj": imageObj
+       }
+     })}`)
+     linksRegex.lastIndex = 0;
+     if (linksRegex.exec(room[`_`])) {
+       // room has links leading out, so listen for further user input
+       return response.speak(speakOutput)
+          .listen(reprompt)
+          .cardRenderer(cardTitle, cardContent, imageObj);
+     } else {
+       console.log("WhereAmI: at the end of a branch. Game over.");
+       // clear session attributes
+       sessionAttributes.room = undefined;
+       sessionAttributes.visited = [];
+       return response.speak(speakOutput)
+            .cardRenderer(cardTitle, cardContent, imageObj);
+     }
+  },
+}
 
 const CancelAndStopHandler = {
     canHandle(handlerInput) {
