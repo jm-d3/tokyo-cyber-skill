@@ -1,8 +1,9 @@
 const Alexa = require('ask-sdk-core');
 
-const story = 'tokyo2020.html';
+var story = 'tokyo2020.html';
 var $twine = null;
 var $storyData = null;
+var linksRegex = /\[\[([^\|\]]*)\|?([^\]]*)\]\]/g;
 
 // Card Content
 const DisplayImg1 = {
@@ -49,14 +50,12 @@ const LaunchRequestHandler = {
        return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
     },
     handle(handlerInput) {
-        console.log($twine);
-        console.log($storyData);
-        const sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
+        let sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
 
         //var room = currentRoom(sessionAttributes.event)
 
         const response = handlerInput.responseBuilder;
-        const speakOutput = 'Test';
+        let speakOutput = 'Test';
 
         response.addRenderTemplateDirective({
             type: 'BodyTemplate2',
@@ -76,12 +75,13 @@ const LaunchRequestHandler = {
 
 const WhereAmIHandler = {
   canHandle(handlerInput) {
-    return handlerInput.requestEnvelope.request.intent.name === 'WhereAmI';
+    return handlerInput.requestEnvelope.request.type === 'IntentRequest'
+        && handlerInput.requestEnvelope.request.intent.name === 'AMAZON.RepeatIntent';
   },
   handle(handlerInput) {
     const response = handlerInput.responseBuilder;
-    const speakOutput = "";
-    const sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
+    let speakOutput = "";
+    let sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
 
     if (sessionAttributes.room === undefined) {
       // You have just started and therefore are in the first room
@@ -90,12 +90,12 @@ const WhereAmIHandler = {
       speakOutput = `Welcome to ${story.replace('.html', '')}. Let's start your game.`;
     }
 
-    const room = currentRoom(sessionAttributes);
+    let room = currentRoom(sessionAttributes);
     console.log(`WhereAmI: in ${JSON.stringify(room)}`);
 
     // get displayable text
     // e.g. "You are here [[Go South|The Hall]]" -> "You are here. Go South"
-    const displayableText = room['_'];
+    let displayableText = room['_'];
     linksRegex.lastIndex = 0;
     let m;
     while ((m = linksRegex.exec(displayableText)) !== null) {
@@ -106,10 +106,10 @@ const WhereAmIHandler = {
     // strip html
     displayableText = displayableText.replace(/<\/?[^>]+(>|$)/g, "");
     displayableText = displayableText.replace("&amp;", "and");
-    speechOutput = speechOutput + displayableText;
+    speakOutput = speakOutput + displayableText;
 
     // create reprompt from links: "You can go north or go south"
-     const reprompt = "";
+     let reprompt = "";
      linksRegex.lastIndex = 0;
      while ((m = linksRegex.exec(room['_'])) !== null) {
        if (m.index === linksRegex.lastIndex) {
@@ -125,9 +125,9 @@ const WhereAmIHandler = {
        reprompt = `${reprompt} ${m[1]}`;
      }
 
-     const firstSentence = displayableText.split('.')[0];
-     const lastSentence = displayableText.replace('\n', ' ').split('. ').pop();
-     const reducedContent = `${firstSentence}. ${reprompt}`;
+     let firstSentence = displayableText.split('.')[0];
+     let lastSentence = displayableText.replace('\n', ' ').split('. ').pop();
+     let reducedContent = `${firstSentence}. ${reprompt}`;
 
     // say less if you've been here before
     if (sessionAttributes.visited == undefined) {
@@ -140,9 +140,9 @@ const WhereAmIHandler = {
       sessionAttributes.visited.push(room['$']['pid']);
     }
 
-     const cardTitle = firstSentence;
-     const cardContent = (reprompt > '') ? reprompt : lastSentence;
-     const imageObj = undefined;
+     let cardTitle = firstSentence;
+     let cardContent = (reprompt > '') ? reprompt : lastSentence;
+     let imageObj = undefined;
 
      console.log(`WhereAmI: ${JSON.stringify({
        "speak": speakOutput,
@@ -154,18 +154,29 @@ const WhereAmIHandler = {
        }
      })}`)
      linksRegex.lastIndex = 0;
+
+     response.addRenderTemplateDirective({
+      type: 'BodyTemplate2',
+      token: 'string',
+      backButton: 'HIDDEN',
+      // backgroundImage: '',
+      image: imageObj,
+      title: cardTitle,
+      textContent: cardContent
+    });
      if (linksRegex.exec(room[`_`])) {
        // room has links leading out, so listen for further user input
        return response.speak(speakOutput)
-          .listen(reprompt)
-          .cardRenderer(cardTitle, cardContent, imageObj);
+          .reprompt(reprompt)
+          .getResponse();
      } else {
        console.log("WhereAmI: at the end of a branch. Game over.");
        // clear session attributes
        sessionAttributes.room = undefined;
        sessionAttributes.visited = [];
-       return response.speak(speakOutput)
-            .cardRenderer(cardTitle, cardContent, imageObj);
+       return response
+        .speak(speakOutput)
+        .getResponse();
      }
   },
 }
@@ -209,6 +220,7 @@ const skillBuilder = Alexa.SkillBuilders.custom();
 exports.handler = skillBuilder
   .addRequestHandlers(
     LaunchRequestHandler,
+    WhereAmIHandler,
     // HelloHandler,
     // HelpHandler,
     CancelAndStopHandler,
@@ -219,8 +231,8 @@ exports.handler = skillBuilder
 
 
 function currentRoom(sessionAttributes) {
-  var currentRoomData = undefined;
-  for (var i = 0; i < $twine.length; i++) {
+  let currentRoomData = undefined;
+  for (let i = 0; i < $twine.length; i++) {
     if ($twine[i]['$']['pid'] === sessionAttributes.room) {
       currentRoomData = $twine[i];
       break;
@@ -230,18 +242,18 @@ function currentRoom(sessionAttributes) {
 }
 
 function followLink(handlerInput, direction_or_array) {
-  var sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
-  var directions = [];
+  let sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
+  let directions = [];
   if (direction_or_array instanceof Array) {
     directions = direction_or_array;
   } else {
     directions = [direction_or_array];
   }
-  var room = currentRoom(sessionAttributes);
-  var result = undefined;
+  let room = currentRoom(sessionAttributes);
+  let result = undefined;
   directions.every(function(direction, index, _arr) {
-    console.log(`followLink: try '${direction}' from ${room['$']['name']}`);
-    var directionRegex = new RegExp(`.*${direction}.*`, 'i');
+    // console.log(`followLink: try '${direction}' from ${room['$']['name']}`);
+    let directionRegex = new RegExp(`.*${direction}.*`, 'i');
     let links;
     linksRegex.lastIndex = 0;
     while ((links = linksRegex.exec(room['_'])) !== null) {
@@ -249,11 +261,11 @@ function followLink(handlerInput, direction_or_array) {
         linksRegex.lastIndex++;
       }
       result = links[1].match(directionRegex);
-      var target = links[2] || links[1];
+      let target = links[2] || links[1];
       console.log(`followLink: check ${links[1]} (${target}) for ${direction} => ${result} `);
       if (result) {
         console.log(`followLink: That would be ${target}`);
-        for (var i = 0; i < $twine.length; i++) {
+        for (let i = 0; i < $twine.length; i++) {
           if ($twine[i]['$']['name'].toLowerCase() === target.toLowerCase()) {
             sessionAttributes.room = $twine[i]['$']['pid'];
             break;
