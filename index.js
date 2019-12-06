@@ -14,6 +14,10 @@ const DisplayImg2 = {
     title: 'Muffin',
     url: 'https://www.tasteofhome.com/wp-content/uploads/2018/01/Wild-Blueberry-Muffins_EXPS_FTTMZ19_787_B03_05_7b_rms-696x696.jpg'
 };
+const DisplayImg3 = {
+  title: 'Croissant',
+  url: 'https://s3.amazonaws.com/finecooking.s3.tauntonclud.com/app/uploads/2017/04/18133547/051097061-01-croissants-main.jpg'
+};
 const myImage1 = new Alexa.ImageHelper()
     .addImageInstance(DisplayImg1.url)
     .getImage();
@@ -22,6 +26,10 @@ const myImage2 = new Alexa.ImageHelper()
     .addImageInstance(DisplayImg2.url)
     .getImage();
         
+const myImage3 = new Alexa.ImageHelper()
+    .addImageInstance(DisplayImg3.url)
+    .getImage();
+
 const primaryText = new Alexa.RichTextContentHelper()
     .withPrimaryText("this is amazing!!!")
     .getTextContent();
@@ -46,10 +54,11 @@ parseString(xml, function(err, result) {
 
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
-       
+       console.log("can handle LaunchRequestHandler");
        return handlerInput.requestEnvelope.request.type === 'LaunchRequest';
     },
     handle(handlerInput) {
+      console.log("in LaunchRequestHandler")
         let sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
 
         //var room = currentRoom(sessionAttributes.event)
@@ -67,6 +76,9 @@ const LaunchRequestHandler = {
             textContent: primaryText
           });
           
+        console.log("RESPONSE 1");
+
+        console.log(response.speak(speakOutput).getResponse());
         return response
           .speak(speakOutput)
               .getResponse();
@@ -75,10 +87,30 @@ const LaunchRequestHandler = {
 
 const WhereAmIHandler = {
   canHandle(handlerInput) {
+    console.log("can handle WhereAmIHandler");
     return handlerInput.requestEnvelope.request.type === 'IntentRequest'
-        && handlerInput.requestEnvelope.request.intent.name === 'AMAZON.RepeatIntent';
+        && (
+          handlerInput.requestEnvelope.request.intent.name === 'AMAZON.RepeatIntent' ||
+          handlerInput.requestEnvelope.request.intent.name === 'ResumeGame' ||
+          handlerInput.requestEnvelope.request.intent.name === 'RestartGame' ||
+          handlerInput.requestEnvelope.request.intent.name === 'Go' ||
+          handlerInput.requestEnvelope.request.intent.name === 'Page' ||
+          handlerInput.requestEnvelope.request.intent.name === 'Fight'
+        );
   },
   handle(handlerInput) {
+    console.log("in WhereAmIHandler");
+    const intent = handlerInput.requestEnvelope.request.intent.name;
+    if(intent === 'Go') {
+      console.log('Go');
+      // get slot values
+      var slotValues = getSlotValues(handlerInput.requestEnvelope.request.intent.slots);
+      followLink(handlerInput, [slotValues['direction']['resolved'], slotValues['direction']['synonym']]);
+    } else if (intent === 'Page') {
+      console.log('Page');
+      followLink(handlerInput, handlerInput.requestEnvelope.request.intent.slots.number.value);
+    }
+    
     const response = handlerInput.responseBuilder;
     let speakOutput = "";
     let sessionAttributes = handlerInput.attributesManager.getSessionAttributes();
@@ -133,16 +165,16 @@ const WhereAmIHandler = {
     if (sessionAttributes.visited == undefined) {
       sessionAttributes.visited = [];  
     }
-    if (sessionAttributes.visited.includes(room['$']['pid'])) {
-      console.log("WhereAmI: player is revisiting");
-      speakOutput = reducedContent;
-    } else {
+    // if (sessionAttributes.visited.includes(room['$']['pid'])) {
+    //   console.log("WhereAmI: player is revisiting");
+    //   speakOutput = reducedContent;
+    // } else {
       sessionAttributes.visited.push(room['$']['pid']);
-    }
+    // }
 
      let cardTitle = firstSentence;
      let cardContent = (reprompt > '') ? reprompt : lastSentence;
-     let imageObj = undefined;
+    //  let imageObj = undefined;
 
      console.log(`WhereAmI: ${JSON.stringify({
        "speak": speakOutput,
@@ -150,7 +182,7 @@ const WhereAmIHandler = {
        "card": {
          "title": cardTitle,
          "content": cardContent,
-         "imageObj": imageObj
+         "image": myImage3
        }
      })}`)
      linksRegex.lastIndex = 0;
@@ -159,21 +191,30 @@ const WhereAmIHandler = {
       type: 'BodyTemplate2',
       token: 'string',
       backButton: 'HIDDEN',
-      // backgroundImage: '',
-      image: imageObj,
+      backgroundImage: myImage2,
+      image: myImage3,
       title: cardTitle,
       textContent: cardContent
     });
+    handlerInput.attributesManager.setSessionAttributes(sessionAttributes);
      if (linksRegex.exec(room[`_`])) {
        // room has links leading out, so listen for further user input
-       return response.speak(speakOutput)
-          .reprompt(reprompt)
-          .getResponse();
+       
+       console.log("RESPONSE 2");
+       console.log("R2SO: " + speakOutput);
+       console.log("R2RP: "+ reprompt);
+
+       console.log(response.listen(reprompt).getResponse());
+
+      response.speak(speakOutput);
+      return response.listen(reprompt).getResponse();
      } else {
        console.log("WhereAmI: at the end of a branch. Game over.");
        // clear session attributes
        sessionAttributes.room = undefined;
        sessionAttributes.visited = [];
+       
+       console.log("RESPONSE 3");
        return response
         .speak(speakOutput)
         .getResponse();
@@ -183,12 +224,17 @@ const WhereAmIHandler = {
 
 const CancelAndStopHandler = {
     canHandle(handlerInput) {
+      console.log("can handle cancelandstophandler");
+      console.log(handlerInput.requestEnvelope.request);
       return handlerInput.requestEnvelope.request.type === 'IntentRequest'
         && (handlerInput.requestEnvelope.request.intent.name === 'AMAZON.CancelIntent'
           || handlerInput.requestEnvelope.request.intent.name === 'AMAZON.StopIntent');
     },
     handle(handlerInput) {
+      console.log("in cancelandstophandler")
       const speakOutput = 'Goodbye!';
+      
+      console.log("RESPONSE 4");
       return handlerInput.responseBuilder
         .speak(speakOutput)
         .getResponse();
@@ -200,6 +246,8 @@ const CancelAndStopHandler = {
     },
     handle(handlerInput) {
       console.log(`Session ended with reason: ${handlerInput.requestEnvelope.request.reason}`);
+      
+      console.log("RESPONSE 5");
       return handlerInput.responseBuilder.getResponse();
     },
   };
@@ -209,7 +257,8 @@ const CancelAndStopHandler = {
     },
     handle(handlerInput, error) {
       console.log(`Error handled: ${error.message}`);
-      console.log(error.trace);
+      
+      console.log("RESPONSE 6");
       return handlerInput.responseBuilder
         .speak('Sorry, I can\'t understand the command. Please say again.')
         .getResponse();
@@ -221,8 +270,6 @@ exports.handler = skillBuilder
   .addRequestHandlers(
     LaunchRequestHandler,
     WhereAmIHandler,
-    // HelloHandler,
-    // HelpHandler,
     CancelAndStopHandler,
     SessionEndedRequestHandler,
   )
@@ -277,4 +324,51 @@ function followLink(handlerInput, direction_or_array) {
     handlerInput.attributesManager.setSessionAttributes(sessionAttributes);
     return !result;
   });
+}
+
+function getSlotValues(filledSlots) {
+  // given slots, a slots value object so you have
+  // what synonym the person said - .synonym
+  // what that resolved to - .resolved
+  // and if it's a word that's in your slot values - .isValidated
+
+  let slotValues = {};
+
+  console.log('The filled slots: ' + JSON.stringify(filledSlots));
+  Object.keys(filledSlots).forEach(function(item) {
+    console.log(filledSlots);
+    var name = filledSlots[item].name;
+
+    if (filledSlots[item] &&
+        filledSlots[item].resolutions &&
+        filledSlots[item].resolutions.resolutionsPerAuthority[0] &&
+        filledSlots[item].resolutions.resolutionsPerAuthority[0].status &&
+        filledSlots[item].resolutions.resolutionsPerAuthority[0].status.code) {
+
+          switch(filledSlots[item].resolutions.resolutionsPerAuthority[0].status.code) {
+            case "ER_SUCCESS_MATCH":
+              slotValues[name] = {
+                "synonym": filledSlots[item].value,
+                "resolved": filledSlots[item].resolutions.resolutionsPerAuthority[0].values[0].value.name,
+                "isValidated": true
+              };
+              break;
+            case "ER_SUCCESS_NO_MATCH":
+                slotValues[name] = {
+                  "synonym": filledSlots[item].value,
+                  "resolved": filledSlots[item].value,
+                  "isValidated": true
+                };
+                break;
+          }
+        } else {
+          slotValues[name] = {
+            "synonym": filledSlots[item].value,
+            "resolved": filledSlots[item].resolutions.resolutionsPerAuthority[0].values[0].value.name,
+            "isValidated": true
+          };
+        }
+  }, this);
+  
+  return slotValues;
 }
