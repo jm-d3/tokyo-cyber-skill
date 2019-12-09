@@ -78,7 +78,7 @@ const LaunchRequestHandler = {
           
         console.log("RESPONSE 1");
 
-        console.log(response.speak(speakOutput).getResponse());
+        // console.log(response.speak(speakOutput).getResponse());
         return response
           .speak(speakOutput)
               .getResponse();
@@ -178,7 +178,7 @@ const WhereAmIHandler = {
 
      console.log(`WhereAmI: ${JSON.stringify({
        "speak": speakOutput,
-       "listen": reprompt,
+       "reprompt": reprompt,
        "card": {
          "title": cardTitle,
          "content": cardContent,
@@ -204,10 +204,12 @@ const WhereAmIHandler = {
        console.log("R2SO: " + speakOutput);
        console.log("R2RP: "+ reprompt);
 
-       console.log(response.listen(reprompt).getResponse());
+       console.log(response.speak(speakOutput).reprompt(reprompt).getResponse());
 
-      response.speak(speakOutput);
-      return response.listen(reprompt).getResponse();
+      // response.speak(speakOutput);
+      return response.speak(speakOutput)
+          .reprompt(reprompt)
+          .getResponse();
      } else {
        console.log("WhereAmI: at the end of a branch. Game over.");
        // clear session attributes
