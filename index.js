@@ -12,7 +12,7 @@ const DisplayImg1 = {
 };
 const DisplayImg2 = {
     title: 'Muffin',
-    url: 'https://www.tasteofhome.com/wp-content/uploads/2018/01/Wild-Blueberry-Muffins_EXPS_FTTMZ19_787_B03_05_7b_rms-696x696.jpg'
+    url: 'https://i.ytimg.com/vi/ENMhrEVa4XQ/maxresdefault.jpg'
 };
 const DisplayImg3 = {
   title: 'Croissant',
@@ -30,15 +30,15 @@ const myImage3 = new Alexa.ImageHelper()
     .addImageInstance(DisplayImg3.url)
     .getImage();
 
+const initialText = "Say \"Where am I\" to begin";
+
 const primaryText = new Alexa.RichTextContentHelper()
-    .withPrimaryText("this is amazing!!!")
+    .withPrimaryText(initialText)
     .getTextContent();
-
-
-/** TO-DO: export handler here? **/
-// module.exports.handler = (event, context, callback) => {
-//     console.log(`handler: ${JSON.stringify(event.request)}`);
-  
+    
+const titleText = new Alexa.RichTextContentHelper()
+        .withPrimaryText("Tokyo 2020 Cyber Escape")
+        .getTextContent();
 
 // read the Twine 2 (Harlowe) story into JSON
 var fs = require('fs');
@@ -64,15 +64,15 @@ const LaunchRequestHandler = {
         //var room = currentRoom(sessionAttributes.event)
 
         const response = handlerInput.responseBuilder;
-        let speakOutput = 'Test';
+        let speakOutput = initialText;
 
         response.addRenderTemplateDirective({
             type: 'BodyTemplate2',
             token: 'string',
             backButton: 'HIDDEN',
             backgroundImage: myImage2,
-            image: myImage1,
-            title: "space facts",
+            image: undefined,
+            title: titleText,
             textContent: primaryText
           });
           
@@ -204,10 +204,10 @@ const WhereAmIHandler = {
        console.log("R2SO: " + speakOutput);
        console.log("R2RP: "+ reprompt);
 
-       console.log(response.speak(speakOutput).reprompt(reprompt).getResponse());
+       console.log(response.speak(displayableText).reprompt(reprompt).getResponse());
 
       // response.speak(speakOutput);
-      return response.speak(speakOutput)
+      return response.speak(displayableText)
           .reprompt(reprompt)
           .getResponse();
      } else {
